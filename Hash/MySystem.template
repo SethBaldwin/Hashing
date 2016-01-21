@@ -1,0 +1,199 @@
+// Default constructor
+// Pre: None.
+// Post: tree is empty.
+template<class ItemType>
+MySystem<ItemType>::MySystem()
+{
+	force_unique_names = 0;
+
+	if (LoadSystem()){
+		std::cout << "SUCCESS\n";
+		new_system = 0;
+	}
+	else
+	{
+		char user_in;
+		std::cout << "FAILED TO LOAD\n";
+		std::cout << "Create new system? (y/n) ";
+		std::cin >> user_in;
+		cin.get();
+		if (user_in == 'y'){
+			_mkdir("../etc");
+			//_mkdir("../Users"); // TODO maybe not
+			ofstream output("../etc/passwd.txt");
+			new_system = 1;
+		}
+		else std::cout << "EXIT\n";
+	}
+}
+
+
+template<class ItemType>
+// Checks for the passwd.txt file.
+// If the passwd.txt file exists it assumes the system exists and will thus load the system
+bool MySystem<ItemType>::LoadSystem()
+{
+	std::ifstream infile;
+	infile.open("../etc/passwd.txt");
+	if (infile.fail())
+		return false;
+
+	std::string line;
+	// Reads in the passwd file line by line converting each into a 'user' 
+	// This conversion from line to user is specified in the sethnix_user struct
+	while (!infile.eof()){
+		getline(infile, line);
+		if (line != ""){
+			sethnix_user temp;
+			temp = temp.FromPasswdLine(line);
+			system_users.AddItem(temp, temp.user_id);
+		}
+	}
+
+	infile.close();
+	return true;
+
+}
+
+template<class ItemType>
+// Runs the specified command.
+// Is there a better way to do this????
+int MySystem<ItemType>::Run(std::string input)
+{
+	std::vector<string> command;
+	std::string temp;
+
+	// Reads in the command line and parses it into seperate commands
+	for (unsigned int x = 0; x <= input.size(); x++){// GetCommand
+		if (input[x] == ' ' || x == input.size()){ 
+			command.push_back(temp);
+			temp = "";
+		}
+		else{
+			temp.push_back(input[x]);
+		}
+	}
+	// Adduser 	// TODO username must be alpha numberic
+	if (command[0] == "adduser"){
+		sethnix_user temp;
+		temp.usrname = command[1];
+
+		std::string password;
+		std::cout << "Password:";
+		std::cin >> password;
+		cin.get();
+
+		temp.password = djb(password);
+
+		temp.user_id = fnv32(command[1]) % system_users.GetTableSize(); // username -> fnv hash % table size
+
+		temp.name = "SomeName";
+
+		temp.home_dir = "/Users/" + command[1]; // TODO add dir
+
+		system_users.AddItem(temp, temp.user_id);
+
+		// Updates the passwd file with the addition of a new user
+		std::ofstream outfile;
+		outfile.open("../etc/passwd.txt", std::ofstream::app); // Without app it would rewrite file 
+		outfile << temp << endl;
+		outfile.close();
+
+	}
+	// Print users
+	else if (command[0] == "printusers"){
+		system_users.PrintTable();
+	}
+	// Delete users - deletes the specified user
+	else if (command[0] == "deleteuser"){
+		sethnix_user temp;
+		temp.usrname = command[1];
+
+		temp.user_id = fnv32(command[1]) % system_users.GetTableSize(); // username -> fnv hash % table size
+
+		system_users.RemoveItem(temp, temp.user_id);
+
+		system_users.OverwriteFile("../etc/passwd.txt");
+
+	}
+	// Stats - prints the stats from the hash table
+	else if (command[0] == "hashstats"){
+		system_users.PrintStats();
+	}
+	// Help - prints the available commands
+	else if (command[0] == "help" || command[0] == "?"){
+		std::cout << "adduers [username] \t\t Adds a user with the specified user name" << endl;
+		std::cout << "printusers \t\t\t Prints a list of the users" << endl;
+		std::cout << "deleteuser [username] \t\t Deletes the user with the specified user name" << endl;
+		std::cout << "hashstats \t\t\t Prints the stats from the hash table" << endl;
+		std::cout << "help \t\t\t\t Prints this list" << endl;
+		std::cout << "exit \t\t\t\t Closes the program" << endl;
+	}
+	// Exit - Closes the program 
+	else if (command[0] == "exit"){
+		return 0;
+	}
+	/* Commands to do:
+		- Logout
+		- Login
+		- DeleteUser
+		- Help
+		- ChangePassword
+	*/
+
+	// Command entered not found
+	else{
+		cout << "Command not found. Type 'help' to see available commands.\n";
+		return -1;
+	}
+
+	return 1;
+}
+
+template<class ItemType>
+// Is passed a username and a password
+// Sends the username through the fnv hash and 
+bool MySystem<ItemType>::UserLogin(std::string usrn, std::string usrp)
+{
+	unsigned int index = fnv32(usrn) % system_users.GetTableSize();
+	sethnix_user temp = system_users.GetItem(index);
+
+	int count = 1; // used in quadratic probing/
+	while (temp.usrname != usrn && count <= system_users.GetNumItems()){
+		temp = system_users.GetNextItem(index, count);
+		count++;
+	}
+	unsigned int pwd = djb(usrp);
+	
+	return (temp.password == pwd);
+
+}
+
+
+template<class ItemType>
+// FNV 32bit hash
+unsigned int MySystem<ItemType>::fnv32(std::string data) 
+{
+	// fnv offset basis
+	unsigned int hash = 2166136261;
+	for (unsigned int i = 0; i < data.length(); ++i) {
+		hash ^= data[i];
+		// fnv prime
+		hash *= 16777619;
+	}
+	return hash;
+}
+
+template<class ItemType>
+// Dan Bernstein Hash
+unsigned int MySystem<ItemType>::djb(std::string data)
+{
+	unsigned int hash = 0;
+
+	for (unsigned int i = 0; i < data.length(); i++)
+	{
+		hash ^= data[i];
+		hash *= 33; 
+	}
+	return hash;
+}

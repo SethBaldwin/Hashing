@@ -1,0 +1,230 @@
+// Default constructor
+// Pre: None.
+// Post: tree is empty.
+template<class ItemType>
+HashTable<ItemType>::HashTable()
+{
+	num_collisions = 0;
+	tot_collisions = 0;
+	average_collisions = 0;
+	num_adds = 0;
+	num_deletes = 0;
+	num_items = 0;
+
+	// Resizes the vector so that indexing is possible
+	hash_table.resize(table_size);
+
+	// Assignes all values in the array to 0 (is there a 1-liner for this?)
+	for (unsigned int x = 0; x < table_size; x++)
+		collisions[x] = 0;
+}
+
+
+template<class ItemType>
+HashTable<ItemType>::~HashTable()
+{
+	
+}
+
+template<class ItemType>
+HashTable<ItemType>::HashTable(const HashTable<ItemType> &acopy)
+{
+
+}
+
+template<class ItemType>
+// Adds a item to the hash_table vector at loc
+bool HashTable<ItemType>::AddItem(ItemType item, unsigned int loc)
+{
+
+	num_collisions = 0;
+	// If the space is taken we need to use a collision resolution technique
+	if (IsOccupied(loc)){
+		loc = CollResolution(loc);
+	}
+
+	// Once the new loc is found that index is assigned the item
+	hash_table[loc] = item;
+	
+	// Indicated that location has an item in it.
+	collisions[loc] = 1;
+	num_adds++;
+
+
+	return 1;
+}
+
+template<class ItemType>
+// Removes the item from the hash_table vector at loc
+bool HashTable<ItemType>::RemoveItem(ItemType item, unsigned int loc)
+{
+	ItemType temp;
+	
+	// If its the first location looked at it just need to delete that item
+	if (hash_table[loc] == item){
+		hash_table[loc] = temp;
+		collisions[loc] = -1; 
+		num_deletes++;
+	}
+
+	int col_num = 1;
+	int iter = 0; 
+	unsigned int cur_loc = loc;
+
+	// Look through all the item until it finds what its looking for or it runs out of options
+	while (iter < GetNumItems() && (collisions[cur_loc] == 1 || collisions[cur_loc] == -1)) {
+		if (item == GetNextItem(cur_loc, col_num)){
+			if (collision_res_tech == 1){
+				cur_loc = (cur_loc + col_num) % table_size;
+			}
+			else if (collision_res_tech == 2){
+				cur_loc = (cur_loc + (col_num * col_num)) % table_size;
+			}
+			hash_table[cur_loc] = temp;
+			collisions[cur_loc] = -1;
+			num_deletes++;
+			return 1;
+		}
+		col_num++;
+		iter++;
+	}
+
+
+	return 0;
+}
+
+template<class ItemType>
+// Gets the current number of items in the table
+int HashTable<ItemType>::GetNumItems()
+{
+	num_items = 0;
+	for each(int item in collisions){
+		if (item == 1){
+			num_items++;
+		}
+	}
+	return num_items;
+}
+
+
+template<class ItemType>
+// Remakes the txt file
+// When I delete an item from the table i need to also delete that item from the file.
+// Since my file has no order i cannot index to the item and delete that line
+// I have to remake the file entirely
+void HashTable<ItemType>::OverwriteFile(std::string path)
+{
+	std::ofstream outfile;
+	outfile.open(path);
+	for (unsigned int x = 0; x < table_size; x++){
+		if (collisions[x] == 1){
+			outfile << hash_table[x] << endl;
+		}
+	}
+	outfile.close();
+}
+
+
+template<class ItemType>
+// Prints
+void HashTable<ItemType>::PrintTable()
+{
+	for each(ItemType item in hash_table){
+		std::cout << item << endl;
+	}
+}
+
+template<class ItemType>
+// GetItem
+ItemType HashTable<ItemType>::GetItem(unsigned int index)
+{
+	return hash_table[index];
+}
+
+template<class ItemType>
+// GetNextItem
+ItemType HashTable<ItemType>::GetNextItem(unsigned int index, int count)
+{
+	if (collision_res_tech == 1){
+		index = (index + count) % table_size;
+		return hash_table[index];
+	}
+	else if (collision_res_tech == 2){
+		index = (index + (count * count)) % table_size;
+		return hash_table[index];
+	}
+
+	return hash_table[index];
+}
+
+
+template<class ItemType>
+// IsOccupied Returns true if that index is used
+bool HashTable<ItemType>::IsOccupied(unsigned int index)
+{
+	if (collisions[index] != 0)
+		return 1;
+	else
+		return 0;
+}
+
+
+template<class ItemType>
+// Pre: Cant be full
+unsigned int HashTable<ItemType>::CollResolution(unsigned int index)
+{
+	if (collision_res_tech == 1){
+		return LinearProbing(index);
+	}
+	else if (collision_res_tech == 2){
+		return QuadraticProbing(index);
+	}
+
+	tot_collisions += num_collisions;
+
+
+	return 1;
+}
+
+template<class ItemType>
+// LinearProbing
+int HashTable<ItemType>::LinearProbing(unsigned int index)
+{
+	num_collisions++;
+	
+	for (unsigned int x = 1; x < table_size; x++){
+		unsigned int next = (index + x) % table_size;
+		if (collisions[next] == 0)
+			return next;
+
+		num_collisions++;
+	}
+	return -1;
+}
+
+template<class ItemType>
+// QuadraticProbing
+int HashTable<ItemType>::QuadraticProbing(unsigned int index)
+{
+	num_collisions++;
+
+	for (unsigned int x = 1; x < table_size; x++){
+		unsigned int next = (index + (x * x)) % table_size;
+		if (collisions[next] != 1)
+			return next;
+
+		num_collisions++;
+	}
+	return -1;
+}
+
+template<class ItemType>
+void HashTable<ItemType>::PrintStats(){
+	std::cout << "Total Collisions:\t" << tot_collisions << endl;
+	std::cout << "Coll of last add:\t" << num_collisions << endl;
+	std::cout << "Avgerage collisions:\t" << average_collisions << endl;
+	std::cout << "Number of additions:\t" << num_adds << endl;
+	std::cout << "Number of deletions:\t" << num_deletes << endl;
+	std::cout << "Number of items:\t" << num_items << endl;
+	std::cout << "Using coll res #:\t" << collision_res_tech << endl;
+}
